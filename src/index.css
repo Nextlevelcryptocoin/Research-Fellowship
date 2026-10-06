@@ -1,0 +1,63 @@
+@import "tailwindcss";
+
+:root {
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Karla", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --gold: #b38a2c;
+  --gold-dark: #8c6a1e;
+  --gold-light: #e5c36d;
+  --ink: #121927;
+  --ink-light: #1e293b;
+  --paper: #faf8f5;
+  --paper-card: #ffffff;
+  --paper-muted: #f3f0e8;
+  --border-subtle: #e6e2d8;
+}
+
+@theme {
+  --font-serif: "Cormorant Garamond", Georgia, serif;
+  --font-display: "Cormorant Garamond", Georgia, serif;
+  --font-sans: "Karla", "Plus Jakarta Sans", system-ui, -apple-system, sans-serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --color-paper: #faf8f5;
+  --color-paper-muted: #f3f0e8;
+  --color-paper-card: #ffffff;
+  --color-ink: #121927;
+  --color-ink-light: #1e293b;
+  --color-gold: #b38a2c;
+  --color-gold-dark: #8c6a1e;
+  --color-gold-light: #e5c36d;
+  --color-navy-900: #121927;
+  --color-navy-800: #1e293b;
+  --color-navy-700: #29384d;
+}
+
+html {
+  scroll-behavior: smooth;
+  font-family: var(--font-sans);
+  background-color: #faf8f5;
+  color: #1a2332;
+}
+
+body {
+  font-family: var(--font-sans);
+  background-color: #faf8f5;
+  color: #1a2332;
+  min-height: 100vh;
+}
+
+::selection {
+  background-color: rgba(216, 176, 76, 0.35);
+  color: #121927;
+}
+
+.eyebrow {
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  color: #8c6a1e;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+

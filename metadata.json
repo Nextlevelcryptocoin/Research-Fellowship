@@ -1,0 +1,6 @@
+{
+  "name": "UNSP International Research Fellowship",
+  "description": "Explore international research fellowship programmes in human rights, artificial intelligence, climate science, space technology, cybersecurity, sustainable development, international relations and other emerging fields.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
