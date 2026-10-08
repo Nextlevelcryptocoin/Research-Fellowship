@@ -38,13 +38,8 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ navigate }) => {
   const returnedFromStripe = new URLSearchParams(window.location.search).get('payment') === 'return';
 
   const applicationId = userApplication?.id;
-  const applicationStatus =
-    paymentApiStatus?.applicationStatus || userApplication?.status;
-  const isEligible =
-    applicationStatus === 'Submitted' ||
-    applicationStatus === 'Approved' ||
-    applicationStatus === 'Payment Pending' ||
-    applicationStatus === 'Enrolled';
+  const applicationStatus = paymentApiStatus?.applicationStatus;
+  const isEligible = applicationStatus === 'Submitted' || applicationStatus === 'Approved';
   const isPaid = paymentApiStatus?.paymentStatus === 'paid';
   const amountMinor = paymentApiStatus?.feeAmountMinor;
   const currency = paymentApiStatus?.feeCurrency || 'INR';
@@ -91,6 +86,20 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ navigate }) => {
     };
   }, [applicationId, returnedFromStripe]);
 
+  if (!paymentApiStatus && applicationId && !errorMessage) {
+    return (
+      <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
+        <CreditCard className="w-12 h-12 text-slate-500 mx-auto" />
+        <h1 className="font-serif text-3xl font-bold text-slate-900">
+          Checking Payment Eligibility
+        </h1>
+        <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
+          Payment eligibility is being verified against your application record.
+        </p>
+      </div>
+    );
+  }
+
   if (!isEligible && !isPaid) {
     return (
       <div className="max-w-3xl mx-auto px-4 py-20 text-center space-y-4">
@@ -99,7 +108,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ navigate }) => {
           Payment Not Yet Available
         </h1>
         <p className="text-xs sm:text-sm text-slate-600 max-w-md mx-auto leading-relaxed">
-          Fellowship fee payment is available after your application has been submitted or approved.
+          Only applications with the server-side status Submitted or Approved are eligible for fellowship fee payment.
         </p>
         <p className="text-xs text-slate-500 font-mono">
           Current Application Status: {applicationStatus || 'Draft'}
@@ -248,7 +257,7 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ navigate }) => {
             <span className="text-xs uppercase tracking-widest text-slate-500 font-semibold block">
               {applicationStatus === 'Submitted'
                 ? 'Application Submitted'
-                : 'Enrollment Formalization'}
+                : 'Fellowship Fee Payment'}
             </span>
             <span className="text-xs px-2 py-0.5 rounded font-mono font-semibold bg-amber-100 text-amber-900 border border-amber-300">
               STRIPE HOSTED CHECKOUT
@@ -257,12 +266,12 @@ export const CheckoutPage: React.FC<CheckoutPageProps> = ({ navigate }) => {
           <h1 className="font-serif text-3xl sm:text-4xl font-bold text-[#121927]">
             {applicationStatus === 'Submitted'
               ? 'Application Submitted'
-              : 'Complete Your Fellowship Enrollment'}
+              : 'Complete Your Fellowship Fee Payment'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 leading-relaxed max-w-2xl">
             {applicationStatus === 'Submitted'
               ? 'Your application has been successfully submitted. You can now pay the fellowship fee.'
-              : 'Continue to Stripe-hosted Checkout to pay the fee. Payment is confirmed only after the verified Stripe webhook updates the server-side record.'}
+              : 'Your application is eligible for the fellowship fee payment. You may proceed to secure checkout while your application is in an eligible status. Eligible application statuses: Submitted or Approved.'}
           </p>
         </div>
 

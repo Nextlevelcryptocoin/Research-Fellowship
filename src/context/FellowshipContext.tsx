@@ -32,12 +32,15 @@ import {
 } from '../services/paymentProvider';
 import { masteriyoService } from '../services/masteriyoIntegration';
 import { MASTERIYO_COURSE_MAPPINGS, getMasteriyoCourseForFellowship } from '../data/masteriyoMappings';
+import { subscribeApplicantAuth } from '../services/applicantAuth';
+import { requestPaymentApi } from '../services/stripeCheckout';
 
 interface FellowshipContextType {
   applications: Application[];
   userApplication: Application | null;
   saveApplicationDraft: (appData: Partial<Application>) => void;
   submitApplication: (appData: Partial<Application>) => void;
+  cacheServerApplication: (application: Application) => void;
   updateApplicationStatus: (appId: string, status: ApplicationStatus, notes?: string) => void;
 
   // Proposals & Research Projects
@@ -525,6 +528,48 @@ export const FellowshipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
   useEffect(() => { localStorage.setItem(STORAGE_KEY_MAPPINGS, JSON.stringify(courseMappings)); }, [courseMappings]);
   useEffect(() => { localStorage.setItem(STORAGE_KEY_AUDIT, JSON.stringify(auditLogs)); }, [auditLogs]);
 
+  useEffect(() => {
+    let active = true;
+    let authRequest = 0;
+    const unsubscribe = subscribeApplicantAuth((firebaseUser) => {
+      const requestId = ++authRequest;
+      setApplications((current) =>
+        current.filter((application) => application.status === 'Draft')
+      );
+      if (!firebaseUser) return;
+
+      void requestPaymentApi<{ applications: Application[] }>('/api/applications').then(
+        ({ applications: serverApplications }) => {
+          if (!active || requestId !== authRequest) return;
+          setApplications((current) => {
+            const localDrafts = current.filter(
+              (application) =>
+                application.status === 'Draft' &&
+                !serverApplications.some(
+                  (serverApplication) =>
+                    serverApplication.fellowshipId === application.fellowshipId
+                )
+            );
+            return [...serverApplications, ...localDrafts];
+          });
+        },
+        (error: unknown) => {
+          if (!active || requestId !== authRequest) return;
+          console.error(
+            'Unable to load applications from the authenticated application service.',
+            error
+          );
+          setApplications((current) => current.filter((application) => application.status === 'Draft'));
+        }
+      );
+    });
+
+    return () => {
+      active = false;
+      unsubscribe();
+    };
+  }, []);
+
   // Active user's records
   const userApplication = applications[0] || null;
   const userProposal = proposals.find((p) => p.applicationId === userApplication?.id) || null;
@@ -640,6 +685,17 @@ export const FellowshipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         read: false
       },
       ...prev
+    ]);
+  };
+
+  const cacheServerApplication = (application: Application) => {
+    setApplications((current) => [
+      application,
+      ...current.filter(
+        (existing) =>
+          existing.id !== application.id &&
+          !(existing.status === 'Draft' && existing.fellowshipId === application.fellowshipId)
+      )
     ]);
   };
 
@@ -1158,6 +1214,7 @@ export const FellowshipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         userApplication,
         saveApplicationDraft,
         submitApplication,
+        cacheServerApplication,
         updateApplicationStatus,
 
         proposals,

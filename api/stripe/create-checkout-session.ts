@@ -5,7 +5,7 @@ import { withTransaction } from '../../server/payment/db';
 import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http';
 import { getApplicationBaseUrl, getStripe } from '../../server/payment/stripe';
 
-const PAYMENT_ELIGIBLE_STATUSES = ['Submitted', 'Approved', 'Payment Pending', 'Enrolled'];
+const PAYMENT_ELIGIBLE_STATUSES = ['Submitted', 'Approved'];
 
 interface ApplicationPaymentRow {
   id: string;

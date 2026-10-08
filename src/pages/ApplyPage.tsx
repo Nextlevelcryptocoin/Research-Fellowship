@@ -2,6 +2,10 @@ import React, { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFellowship } from '../context/FellowshipContext';
 import { FELLOWSHIPS, FELLOWSHIP_DISCLAIMER_TEXT } from '../data/fellowships';
+import { getCurrentApplicantUser, signInApplicantWithGoogle, subscribeApplicantAuth } from '../services/applicantAuth';
+import { requestPaymentApi } from '../services/stripeCheckout';
+import type { Application } from '../types';
+import type { User as FirebaseUser } from 'firebase/auth';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import {
   FileText,
@@ -21,7 +25,7 @@ interface ApplyPageProps {
 
 export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshipSlug }) => {
   const { user } = useAuth();
-  const { userApplication, saveApplicationDraft, submitApplication } = useFellowship();
+  const { userApplication, saveApplicationDraft, cacheServerApplication } = useFellowship();
 
   const matchedFellowship = initialFellowshipSlug
     ? FELLOWSHIPS.find((f) => f.slug === initialFellowshipSlug)
@@ -54,7 +58,30 @@ export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshi
   });
 
   const [statusMessage, setStatusMessage] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [submittedSuccess, setSubmittedSuccess] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [signingIn, setSigningIn] = useState(false);
+  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+  const [firebaseAuthReady, setFirebaseAuthReady] = useState(false);
+  const [submittedApplication, setSubmittedApplication] = useState<Application | null>(null);
+  const [createdApplication, setCreatedApplication] = useState(false);
+
+  useEffect(() => {
+    return subscribeApplicantAuth((authenticatedUser) => {
+      setFirebaseUser(authenticatedUser);
+      setFirebaseAuthReady(true);
+      if (!authenticatedUser) return;
+
+      const [firstName = '', ...lastNameParts] = (authenticatedUser.displayName || '').split(' ');
+      setFormData((current) => ({
+        ...current,
+        firstName: firstName || current.firstName,
+        lastName: lastNameParts.join(' ') || current.lastName,
+        email: authenticatedUser.email || current.email
+      }));
+    });
+  }, []);
 
   const handleFellowshipChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     const selected = FELLOWSHIPS.find((f) => f.id === e.target.value);
@@ -74,10 +101,56 @@ export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshi
     setTimeout(() => setStatusMessage(null), 4000);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleApplicantSignIn = async () => {
+    setSigningIn(true);
+    setErrorMessage(null);
+    try {
+      await signInApplicantWithGoogle();
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Firebase sign-in could not be completed.'
+      );
+    } finally {
+      setSigningIn(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    submitApplication(formData);
-    setSubmittedSuccess(true);
+    setSubmitting(true);
+    setErrorMessage(null);
+    setStatusMessage(null);
+    try {
+      const authenticatedUser =
+        (await getCurrentApplicantUser()) || (await signInApplicantWithGoogle());
+      const result = await requestPaymentApi<{
+        application: Application;
+        created: boolean;
+      }>('/api/applications', {
+        method: 'POST',
+        body: JSON.stringify({
+          fellowshipId: formData.fellowshipId,
+          submissionData: formData
+        })
+      });
+
+      const serverApplication = {
+        ...result.application,
+        userId: authenticatedUser.uid
+      };
+      cacheServerApplication(serverApplication);
+      setSubmittedApplication(serverApplication);
+      setCreatedApplication(result.created);
+      setSubmittedSuccess(true);
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error
+          ? error.message
+          : 'Your application could not be submitted. Please try again.'
+      );
+    } finally {
+      setSubmitting(false);
+    }
   };
 
   if (submittedSuccess) {
@@ -88,11 +161,18 @@ export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshi
             <CheckCircle className="w-8 h-8" />
           </div>
           <h1 className="font-serif text-3xl font-bold text-slate-950">
-            Application Submitted Successfully
+            {createdApplication ? 'Application Submitted Successfully' : 'Application Already Exists'}
           </h1>
           <p className="text-xs sm:text-sm text-slate-600 max-w-lg mx-auto leading-relaxed">
-            Your application for the <strong>{formData.fellowshipTitle}</strong> has been received by the UNSP Academic Review Committee. You may track your application status in your Fellow Dashboard.
+            {createdApplication
+              ? <>Your application for the <strong>{submittedApplication?.fellowshipTitle}</strong> has been saved securely for review. Application status: <strong>{submittedApplication?.status}</strong>.</>
+              : <>An application for the <strong>{submittedApplication?.fellowshipTitle}</strong> already exists. Its status is <strong>{submittedApplication?.status}</strong>; the existing record was returned without changing it.</>}
           </p>
+          {submittedApplication && (
+            <p className="text-[11px] text-slate-500 font-mono">
+              Application ID: {submittedApplication.id}
+            </p>
+          )}
           <div className="pt-4 flex justify-center gap-4">
             <button
               onClick={() => navigate('/student/dashboard')}
@@ -132,7 +212,7 @@ export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshi
           <div className="pt-1 flex items-center gap-2 text-xs font-mono text-slate-500">
             <span>Programme Fee: <strong className="text-slate-950">₹1,50,000</strong></span>
             <span>·</span>
-            <span>Fee settled only after selection</span>
+            <span>Payment eligible when status is Submitted or Approved</span>
           </div>
         </div>
 
@@ -140,6 +220,34 @@ export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshi
           <div className="p-4 bg-emerald-50 border border-emerald-200 text-emerald-800 rounded-lg text-xs flex items-center gap-2">
             <CheckCircle className="w-4 h-4 text-emerald-700" />
             <span>{statusMessage}</span>
+          </div>
+        )}
+
+        {!firebaseAuthReady || !firebaseUser ? (
+          <div className="p-4 bg-blue-50 border border-blue-200 text-blue-900 rounded-lg text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            <span>
+              Application submission requires a Firebase-authenticated Google account. The portal demo sign-in does not authorize submission.
+            </span>
+            {firebaseAuthReady && !firebaseUser && (
+              <button
+                type="button"
+                onClick={() => void handleApplicantSignIn()}
+                disabled={signingIn}
+                className="px-4 py-2 font-semibold text-white bg-slate-950 rounded-lg disabled:opacity-50"
+              >
+                {signingIn ? 'Signing in…' : 'Sign in with Google'}
+              </button>
+            )}
+          </div>
+        ) : (
+          <div className="text-[11px] text-slate-500">
+            Signed in to Firebase as {firebaseUser.email || 'authenticated applicant'}.
+          </div>
+        )}
+
+        {errorMessage && (
+          <div role="alert" className="p-4 bg-red-50 border border-red-200 text-red-800 rounded-lg text-xs">
+            {errorMessage}
           </div>
         )}
 
@@ -430,10 +538,11 @@ export const ApplyPage: React.FC<ApplyPageProps> = ({ navigate, initialFellowshi
 
             <button
               type="submit"
+              disabled={submitting || !firebaseAuthReady}
               className="px-8 py-3 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer flex items-center gap-2 shadow-sm"
             >
               <Send className="w-3.5 h-3.5" />
-              <span>Submit Formal Application</span>
+              <span>{submitting ? 'Submitting securely…' : 'Submit Formal Application'}</span>
             </button>
           </div>
         </form>

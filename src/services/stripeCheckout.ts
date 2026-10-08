@@ -1,4 +1,4 @@
-import { auth } from './googleDriveService';
+import { getCurrentApplicantUser } from './applicantAuth';
 
 export interface AuthoritativePaymentStatus {
   applicationStatus: string;
@@ -15,7 +15,7 @@ export async function requestPaymentApi<T>(
   path: string,
   init: RequestInit = {}
 ): Promise<T> {
-  const firebaseUser = auth.currentUser;
+  const firebaseUser = await getCurrentApplicantUser();
   if (!firebaseUser) {
     throw new Error(
       'Secure Firebase sign-in is required. The demo applicant session cannot authorize a payment.'

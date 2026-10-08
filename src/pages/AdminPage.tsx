@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFellowship } from '../context/FellowshipContext';
 import { FELLOWSHIPS } from '../data/fellowships';
@@ -29,17 +29,23 @@ import {
   Calendar,
   DollarSign
 } from 'lucide-react';
-import { ApplicationStatus, PaymentMethodCategory } from '../types';
+import { Application, ApplicationStatus, PaymentMethodCategory } from '../types';
+import { requestPaymentApi } from '../services/stripeCheckout';
+import { signInApplicantWithGoogle } from '../services/applicantAuth';
 
 interface AdminPageProps {
   navigate: (route: string) => void;
   initialTab?: string;
 }
 
+async function requestAdminApplications(): Promise<Application[]> {
+  const result = await requestPaymentApi<{ applications: Application[] }>('/api/admin/applications');
+  return result.applications;
+}
+
 export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) => {
   const { user, role, switchRoleForDemo } = useAuth();
   const {
-    applications,
     updateApplicationStatus,
     orders,
     invoices,
@@ -83,6 +89,10 @@ export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) =>
   // Webhook simulation state
   const [webhookTesting, setWebhookTesting] = useState(false);
   const [webhookResult, setWebhookResult] = useState<string | null>(null);
+  const [adminApplications, setAdminApplications] = useState<Application[]>([]);
+  const [adminApplicationsLoading, setAdminApplicationsLoading] = useState(false);
+  const [adminApplicationsError, setAdminApplicationsError] = useState<string | null>(null);
+  const [updatingApplicationId, setUpdatingApplicationId] = useState<string | null>(null);
 
   // Masteriyo state
   const [lmsCourses, setLmsCourses] = useState<MasteriyoCourse[]>([]);
@@ -102,6 +112,64 @@ export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) =>
     status: 'VALID' as const,
     disclaimer: 'UNSP International Research Fellowship is a privately administered research fellowship programme.'
   });
+
+  const loadAdminApplications = async () => {
+    setAdminApplicationsLoading(true);
+    setAdminApplicationsError(null);
+    try {
+      const applications = await requestAdminApplications();
+      setAdminApplications(applications);
+    } catch (error) {
+      setAdminApplicationsError(
+        error instanceof Error ? error.message : 'Unable to load server applications.'
+      );
+    } finally {
+      setAdminApplicationsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (activeTab === 'applications') void loadAdminApplications();
+  }, [activeTab]);
+
+  const handleAdminApplicantSignIn = async () => {
+    try {
+      await signInApplicantWithGoogle();
+      await loadAdminApplications();
+    } catch (error) {
+      setAdminApplicationsError(
+        error instanceof Error ? error.message : 'Firebase sign-in failed.'
+      );
+    }
+  };
+
+  const handleApplicationStatusChange = async (appId: string, status: ApplicationStatus) => {
+    setUpdatingApplicationId(appId);
+    setAdminApplicationsError(null);
+    try {
+      const result = await requestPaymentApi<{
+        applicationId: string;
+        status: ApplicationStatus;
+      }>('/api/admin/application-status', {
+        method: 'PATCH',
+        body: JSON.stringify({ applicationId: appId, status })
+      });
+      setAdminApplications((current) =>
+        current.map((application) =>
+          application.id === result.applicationId
+            ? { ...application, status: result.status }
+            : application
+        )
+      );
+      updateApplicationStatus(result.applicationId, result.status);
+    } catch (error) {
+      setAdminApplicationsError(
+        error instanceof Error ? error.message : 'Application status update failed.'
+      );
+    } finally {
+      setUpdatingApplicationId(null);
+    }
+  };
   const [certMessage, setCertMessage] = useState<string | null>(null);
 
   // RBAC protection check
@@ -348,12 +416,38 @@ export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) =>
                     Application Admissions Review
                   </h2>
                   <p className="text-slate-500">
-                    Evaluate and transition applicants across academic review stages.
+                    Server applications are visible only to Firebase accounts with the administrator claim.
                   </p>
                 </div>
 
+                {adminApplicationsError && (
+                  <div role="alert" className="p-4 bg-amber-50 border border-amber-200 rounded-lg text-xs text-amber-900 space-y-3">
+                    <p>{adminApplicationsError}</p>
+                    <div className="flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        onClick={() => void handleAdminApplicantSignIn()}
+                        className="px-3 py-2 bg-slate-950 text-white rounded"
+                      >
+                        Sign in with Firebase
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => void loadAdminApplications()}
+                        className="px-3 py-2 bg-white border border-amber-300 rounded"
+                      >
+                        Retry
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {adminApplicationsLoading && (
+                  <p className="text-xs text-slate-500">Loading server applications…</p>
+                )}
+
                 <div className="space-y-4">
-                  {applications.map((app) => (
+                  {adminApplications.map((app) => (
                     <div key={app.id} className="p-5 border border-stone-200 rounded-lg space-y-3 bg-stone-50/40">
                       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-2">
                         <div>
@@ -381,16 +475,17 @@ export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) =>
                           [
                             'Submitted',
                             'Under Review',
+                            'Additional Information Required',
                             'Approved',
                             'Rejected',
-                            'Payment Pending',
-                            'Paid',
+                            'Withdrawn',
                             'Enrolled'
                           ] as ApplicationStatus[]
                         ).map((st) => (
                           <button
                             key={st}
-                            onClick={() => updateApplicationStatus(app.id, st)}
+                            onClick={() => void handleApplicationStatusChange(app.id, st)}
+                            disabled={updatingApplicationId === app.id || app.status === st}
                             className={`px-2 py-1 rounded border text-[11px] cursor-pointer ${
                               app.status === st
                                 ? 'bg-slate-900 text-white border-slate-900 font-semibold'
@@ -403,6 +498,13 @@ export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) =>
                       </div>
                     </div>
                   ))}
+                  {!adminApplicationsLoading &&
+                    !adminApplicationsError &&
+                    adminApplications.length === 0 && (
+                      <p className="text-xs text-slate-500">
+                        No server-side applications are available to this administrator account.
+                      </p>
+                    )}
                 </div>
               </div>
             )}

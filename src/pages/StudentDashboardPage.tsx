@@ -83,6 +83,30 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
     authoritativePayment?.applicationStatus ||
     (userApplication?.status === 'Paid' ? 'Payment status checking' : userApplication?.status) ||
     'Draft';
+  const isPaymentEligible =
+    authoritativePayment?.applicationStatus === 'Submitted' ||
+    authoritativePayment?.applicationStatus === 'Approved';
+  const paymentEligibilityMessage = (() => {
+    switch (authoritativePayment?.applicationStatus) {
+      case 'Under Review':
+        return 'Your application is currently under review. Payment will become available if your application reaches an eligible status.';
+      case 'Additional Information Required':
+        return 'Additional information is required for your application. Payment is currently unavailable.';
+      case 'Rejected':
+        return 'Your application is not currently eligible for fellowship fee payment.';
+      case 'Withdrawn':
+        return 'Your application is withdrawn. Payment is currently unavailable.';
+      case 'Enrolled':
+        return 'Your application is enrolled. No new fellowship fee payment is currently available.';
+      case 'Submitted':
+      case 'Approved':
+        return 'Your application is currently eligible for fellowship fee payment.';
+      default:
+        return paymentStatusError
+          ? 'Payment eligibility is unavailable because your application status could not be verified.'
+          : 'Your application status is being checked. Payment eligibility will be shown when verification is complete.';
+    }
+  })();
   const paymentStatus =
     authoritativePayment?.paymentStatus ||
     (paymentStatusError ? 'unavailable' : 'checking');
@@ -160,7 +184,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
           </div>
 
           <div className="flex flex-wrap gap-2">
-            {!isPaid && (appStatus === 'Approved' || appStatus === 'Payment Pending') && (
+            {!isPaid && isPaymentEligible && (
               <button
                 onClick={() => navigate('/checkout')}
                 className="px-5 py-2.5 text-xs font-semibold text-white bg-[#121927] hover:bg-[#1e293b] rounded-lg transition-colors cursor-pointer flex items-center gap-2 shadow-sm"
@@ -206,7 +230,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                 </span>
               </div>
             </div>
-            {!isPaid && (
+            {!isPaid && isPaymentEligible && (
               <button
                 onClick={() => navigate('/checkout')}
                 className="px-5 py-2.5 text-xs font-semibold text-white bg-[#121927] hover:bg-[#1e293b] rounded-lg transition-colors cursor-pointer shadow-sm"
@@ -420,7 +444,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       Application #{userApplication?.id || '—'}
                     </p>
                     <div className="pt-2 flex flex-wrap gap-2">
-                      {!isPaid && (
+                      {!isPaid && isPaymentEligible && (
                         <button
                           onClick={() => navigate('/checkout')}
                           className="px-3.5 py-1.5 text-xs font-semibold text-white bg-slate-950 rounded hover:bg-slate-800 cursor-pointer"
@@ -570,18 +594,18 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                   </div>
                 </div>
 
-                {/* Primary Action Banner if Pending */}
-                {!isPaid && (
+                {/* Payment action is shown only for a server-verified eligible application status. */}
+                {!isPaid && isPaymentEligible && (
                   <div className="p-6 bg-slate-950 text-white rounded-xl flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                     <div className="space-y-1">
                       <span className="text-xs text-amber-300 uppercase tracking-widest font-semibold block">
-                        Action Required
+                        Application status: {authoritativePayment?.applicationStatus}
                       </span>
                       <h3 className="font-serif text-xl font-bold">
                         Proceed to Fee Settlement
                       </h3>
                       <p className="text-xs text-slate-300 max-w-md">
-                        Your application is approved. Complete payment to activate your Masteriyo LMS account and scheduled advisor orientation.
+                        Your application is currently eligible for fellowship fee payment.
                       </p>
                     </div>
 
@@ -592,6 +616,24 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       <span>PROCEED TO PAYMENT ({feeLabel})</span>
                       <ArrowRight className="w-4 h-4 text-slate-950" />
                     </button>
+                  </div>
+                )}
+                {!isPaid && !isPaymentEligible && (
+                  <div
+                    role="status"
+                    className="p-6 bg-stone-50 border border-stone-200 text-slate-700 rounded-xl space-y-2"
+                  >
+                    <h3 className="font-serif text-lg font-bold text-slate-900">
+                      Payment Unavailable
+                    </h3>
+                    {authoritativePayment?.applicationStatus && (
+                      <p className="text-xs font-medium text-slate-600">
+                        Application status: {authoritativePayment.applicationStatus}
+                      </p>
+                    )}
+                    <p className="text-xs text-slate-600 max-w-2xl">
+                      {paymentEligibilityMessage}
+                    </p>
                   </div>
                 )}
 
