@@ -104,7 +104,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
       setLoginPassword('');
       setNotice('Your account was created. Check your email and verify your address before signing in.');
     } catch (registrationError) {
-      setError(getApplicantAuthErrorMessage(registrationError));
+      setError(getApplicantAuthErrorMessage(registrationError, true));
     }
   };
 

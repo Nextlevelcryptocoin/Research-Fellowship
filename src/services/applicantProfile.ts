@@ -23,6 +23,16 @@ export type EditableApplicantProfile = Omit<
   'email' | 'emailVerified' | 'createdAt' | 'updatedAt'
 >;
 
+export class ApplicantProfileRequestError extends Error {
+  readonly diagnosticId: string;
+
+  constructor(message: string, status: number) {
+    super(message);
+    this.name = 'ApplicantProfileRequestError';
+    this.diagnosticId = `HTTP ${status}`;
+  }
+}
+
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -72,7 +82,7 @@ async function requestProfile(
       isRecord(result) && typeof result.error === 'string'
         ? result.error
         : 'Your applicant profile could not be saved.';
-    throw new Error(message);
+    throw new ApplicantProfileRequestError(message, response.status);
   }
   if (!isRecord(result)) {
     throw new Error('The applicant profile response was invalid.');

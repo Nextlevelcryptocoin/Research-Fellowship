@@ -13,6 +13,7 @@ import {
 import { auth, ensureFirebaseAuthPersistence } from './firebase';
 import {
   createApplicantProfile,
+  ApplicantProfileRequestError,
   type ApplicantProfileData
 } from './applicantProfile';
 
@@ -110,10 +111,17 @@ export async function registerApplicant(params: {
     };
     try {
       await createApplicantProfile(credential.user, profile);
-    } catch {
-      throw new Error(
+    } catch (error) {
+      const registrationError = new Error(
         'Your account was created and a verification email was sent, but your profile could not be saved. Please contact support before creating another account.'
       );
+      Object.assign(registrationError, {
+        registrationDiagnosticId:
+          error instanceof ApplicantProfileRequestError
+            ? error.diagnosticId
+            : 'PROFILE_REQUEST_FAILED'
+      });
+      throw registrationError;
     }
   } finally {
     await signOut(auth);
@@ -128,7 +136,32 @@ export async function signOutApplicant(): Promise<void> {
   await signOut(auth);
 }
 
-export function getApplicantAuthErrorMessage(error: unknown): string {
+export function getApplicantAuthErrorMessage(
+  error: unknown,
+  includeRegistrationDiagnostic = false
+): string {
+  if (includeRegistrationDiagnostic) {
+    const errorCode =
+      typeof error === 'object' &&
+      error !== null &&
+      'code' in error &&
+      typeof error.code === 'string' &&
+      /^auth\/[a-z0-9-]+$/.test(error.code)
+        ? error.code
+        : null;
+    const registrationDiagnosticId =
+      typeof error === 'object' &&
+      error !== null &&
+      'registrationDiagnosticId' in error &&
+      typeof error.registrationDiagnosticId === 'string' &&
+      /^(?:HTTP [1-5]\d{2}|PROFILE_REQUEST_FAILED)$/.test(
+        error.registrationDiagnosticId
+      )
+        ? error.registrationDiagnosticId
+        : null;
+    return `Registration diagnostic: ${errorCode || registrationDiagnosticId || 'UNKNOWN_ERROR'}`;
+  }
+
   if (error instanceof Error && error.message.startsWith('Please verify your email address.')) {
     return error.message;
   }
