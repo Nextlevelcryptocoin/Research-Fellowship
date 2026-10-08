@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { ShieldCheck, UserCheck, KeyRound, ArrowRight, CheckCircle } from 'lucide-react';
 import { UserRole } from '../types';
+import { signInApplicantWithGoogle } from '../services/applicantAuth';
 
 interface LoginPageProps {
   navigate: (route: string) => void;
@@ -35,6 +36,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
   const [forgotSent, setForgotSent] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [googleSignInLoading, setGoogleSignInLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -45,6 +47,37 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
     }
     await login(loginEmail, loginPassword);
     navigate('/student/dashboard');
+  };
+
+  const handleGoogleSignIn = async () => {
+    setError(null);
+    setGoogleSignInLoading(true);
+    try {
+      await signInApplicantWithGoogle();
+      navigate('/student/dashboard');
+    } catch (signInError) {
+      const errorCode =
+        typeof signInError === 'object' &&
+        signInError !== null &&
+        'code' in signInError &&
+        typeof signInError.code === 'string'
+          ? signInError.code
+          : '';
+
+      if (errorCode === 'auth/popup-closed-by-user') {
+        setError('Google sign-in was cancelled before completion. Please try again.');
+      } else if (errorCode === 'auth/popup-blocked') {
+        setError('Your browser blocked the Google sign-in popup. Allow popups and try again.');
+      } else if (errorCode === 'auth/unauthorized-domain') {
+        setError('This site is not authorized for Google sign-in. Please contact support.');
+      } else if (signInError instanceof Error) {
+        setError(`Google sign-in failed: ${signInError.message}`);
+      } else {
+        setError('Google sign-in could not be completed. Please try again.');
+      }
+    } finally {
+      setGoogleSignInLoading(false);
+    }
   };
 
   const handleRegister = async (e: React.FormEvent) => {
@@ -151,6 +184,26 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               className="w-full py-2.5 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shadow-sm"
             >
               Sign In to Dashboard →
+            </button>
+
+            <div className="relative py-1">
+              <div className="absolute inset-0 flex items-center" aria-hidden="true">
+                <div className="w-full border-t border-stone-200" />
+              </div>
+              <div className="relative flex justify-center">
+                <span className="bg-white px-3 text-[10px] uppercase tracking-wider text-slate-400">
+                  Or
+                </span>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => void handleGoogleSignIn()}
+              disabled={googleSignInLoading}
+              className="w-full py-2.5 text-xs font-semibold text-slate-800 bg-white border border-stone-300 hover:bg-stone-50 rounded-lg transition-colors cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
+            >
+              {googleSignInLoading ? 'Connecting to Google...' : 'Continue with Google'}
             </button>
 
             {/* Quick Demo Login Preset Buttons */}
