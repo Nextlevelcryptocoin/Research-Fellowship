@@ -1,10 +1,14 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { useFellowship } from '../context/FellowshipContext';
 import { CertificateView } from '../components/CertificateView';
 import { InvoiceView } from '../components/InvoiceView';
 import { GoogleDriveExplorer } from '../components/GoogleDriveExplorer';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
+import {
+  requestPaymentApi,
+  type AuthoritativePaymentStatus
+} from '../services/stripeCheckout';
 import {
   FileText,
   CreditCard,
@@ -39,7 +43,6 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
   const { user, updateProfile, role } = useAuth();
   const {
     userApplication,
-    userOrder,
     userInvoice,
     userEnrollment,
     userProposal,
@@ -71,15 +74,55 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
 
   const [retryingLms, setRetryingLms] = useState(false);
   const [lmsNotice, setLmsNotice] = useState<string | null>(null);
+  const [authoritativePayment, setAuthoritativePayment] =
+    useState<AuthoritativePaymentStatus | null>(null);
+  const [paymentStatusError, setPaymentStatusError] = useState<string | null>(null);
 
   // Status variables
-  const appStatus = userApplication?.status || 'Draft';
-  const orderStatus = userOrder?.orderStatus || 'Created';
-  const paymentStatus = userOrder?.paymentStatus || 'Payment Pending';
-  const isPaid = paymentStatus === 'Payment Successful' || orderStatus === 'Paid';
+  const appStatus =
+    authoritativePayment?.applicationStatus ||
+    (userApplication?.status === 'Paid' ? 'Payment status checking' : userApplication?.status) ||
+    'Draft';
+  const paymentStatus =
+    authoritativePayment?.paymentStatus ||
+    (paymentStatusError ? 'unavailable' : 'checking');
+  const isPaid = authoritativePayment?.paymentStatus === 'paid';
+  const feeLabel = authoritativePayment
+    ? new Intl.NumberFormat('en-IN', {
+        style: 'currency',
+        currency: authoritativePayment.feeCurrency,
+        maximumFractionDigits: 0
+      }).format(authoritativePayment.feeAmountMinor / 100)
+    : 'Server amount unavailable';
   const enrollmentStatus = userEnrollment?.status || 'Payment Pending';
   const proposalStatus = userProposal?.status || 'Draft';
   const hasCertificate = userCertificate && (appStatus === 'Completed' || userCertificate.status === 'VALID');
+
+  useEffect(() => {
+    if (!userApplication?.id) return;
+
+    let active = true;
+    setAuthoritativePayment(null);
+    setPaymentStatusError(null);
+    void requestPaymentApi<AuthoritativePaymentStatus>(
+      `/api/payment/status?applicationId=${encodeURIComponent(userApplication.id)}`
+    ).then(
+      (status) => {
+        if (active) setAuthoritativePayment(status);
+      },
+      (error: unknown) => {
+        if (!active) return;
+        setAuthoritativePayment(null);
+        setPaymentStatusError(
+          error instanceof Error ? error.message : 'Unable to read server payment status.'
+        );
+      }
+    );
+
+    return () => {
+      active = false;
+    };
+  }, [userApplication?.id]);
 
   const handleRetryLms = async () => {
     if (!userEnrollment) return;
@@ -122,7 +165,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                 onClick={() => navigate('/checkout')}
                 className="px-5 py-2.5 text-xs font-semibold text-white bg-[#121927] hover:bg-[#1e293b] rounded-lg transition-colors cursor-pointer flex items-center gap-2 shadow-sm"
               >
-                <span>Proceed to Payment (₹1,50,000)</span>
+                <span>Pay Fellowship Fee ({feeLabel})</span>
                 <ArrowRight className="w-4 h-4 text-[#e5c36d]" />
               </button>
             )}
@@ -134,6 +177,45 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
             </button>
           </div>
         </div>
+
+        {appStatus === 'Submitted' && (
+          <div className="bg-white border border-[#e6e2d8] rounded-xl p-6 sm:p-8 space-y-4 shadow-xs">
+            <div>
+              <h2 className="font-serif text-xl font-bold text-[#121927]">
+                {isPaid ? 'Payment Received' : 'Application Submitted'}
+              </h2>
+              <p className="text-xs sm:text-sm text-slate-600 mt-2 leading-relaxed">
+                {isPaid
+                  ? 'Payment received successfully. Your application is now awaiting formal review.'
+                  : 'Your application has been successfully submitted. You can now pay the fellowship fee.'}
+              </p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+              <div className="bg-[#faf8f5] border border-[#e6e2d8] rounded-lg p-3">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Fellowship</span>
+                <span className="font-semibold text-[#121927]">{userApplication?.fellowshipTitle}</span>
+              </div>
+              <div className="bg-[#faf8f5] border border-[#e6e2d8] rounded-lg p-3">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Fellowship Fee</span>
+                <span className="font-semibold text-[#121927]">{feeLabel}</span>
+              </div>
+              <div className="bg-[#faf8f5] border border-[#e6e2d8] rounded-lg p-3">
+                <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">Payment Status</span>
+                <span className={`font-semibold ${isPaid ? 'text-emerald-700' : 'text-amber-800'}`}>
+                  {isPaid ? 'Payment Received' : paymentStatus}
+                </span>
+              </div>
+            </div>
+            {!isPaid && (
+              <button
+                onClick={() => navigate('/checkout')}
+                className="px-5 py-2.5 text-xs font-semibold text-white bg-[#121927] hover:bg-[#1e293b] rounded-lg transition-colors cursor-pointer shadow-sm"
+              >
+                Pay Fellowship Fee
+              </button>
+            )}
+          </div>
+        )}
 
         {/* Status Indicators Dashboard Strip (Requirement 6 & 20) */}
         <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -161,7 +243,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                 isPaid ? 'text-emerald-700' : 'text-amber-800'
               }`}
             >
-              {isPaid ? 'PAID' : 'PENDING'} (₹1,50,000)
+              {isPaid ? 'PAID' : paymentStatus.toUpperCase()} ({feeLabel})
             </span>
           </div>
 
@@ -329,13 +411,13 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       Fee & Order Overview
                     </span>
                     <div className="flex items-baseline gap-2">
-                      <span className="font-mono text-2xl font-bold text-slate-950">₹1,50,000</span>
+                      <span className="font-mono text-2xl font-bold text-slate-950">{feeLabel}</span>
                       <span className={`text-xs font-semibold ${isPaid ? 'text-emerald-700' : 'text-amber-800'}`}>
                         Status: {paymentStatus}
                       </span>
                     </div>
                     <p className="text-xs text-slate-600">
-                      Order #{userOrder?.orderId || 'ORD-UNSP-2026-8812'} · Invoice #{userInvoice?.invoiceNumber || 'UNSP-INV-2026-8812'}
+                      Application #{userApplication?.id || '—'}
                     </p>
                     <div className="pt-2 flex flex-wrap gap-2">
                       {!isPaid && (
@@ -475,7 +557,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       Fee Settlement, Invoicing & Orders
                     </h2>
                     <p className="text-xs text-slate-500">
-                      Official transaction record for the ₹1,50,000 fellowship fee.
+                      Payment status is read from the verified server-side payment record.
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
@@ -507,7 +589,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       onClick={() => navigate('/checkout')}
                       className="px-6 py-3 text-xs font-semibold text-slate-950 bg-amber-300 hover:bg-amber-400 rounded-lg transition-colors cursor-pointer whitespace-nowrap self-start sm:self-auto flex items-center gap-2 font-mono"
                     >
-                      <span>PROCEED TO PAYMENT (₹1,50,000)</span>
+                      <span>PROCEED TO PAYMENT ({feeLabel})</span>
                       <ArrowRight className="w-4 h-4 text-slate-950" />
                     </button>
                   </div>
@@ -536,14 +618,14 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">
                         Amount
                       </span>
-                      <span className="font-mono font-bold text-slate-950 text-sm">₹1,50,000</span>
+                      <span className="font-mono font-bold text-slate-950 text-sm">{feeLabel}</span>
                     </div>
 
                     <div>
                       <span className="text-[10px] uppercase tracking-wider text-slate-400 block font-semibold">
-                        Order ID
+                        Application ID
                       </span>
-                      <span className="font-mono text-slate-800">{userOrder?.orderId || 'ORD-UNSP-2026-8812'}</span>
+                      <span className="font-mono text-slate-800">{userApplication?.id || '—'}</span>
                     </div>
                   </div>
 
@@ -553,7 +635,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                         Payment Method
                       </span>
                       <span className="font-medium text-slate-800">
-                        {userOrder?.paymentMethod.replace(/_/g, ' ').toUpperCase() || 'UPI'}
+                        Stripe-hosted Checkout
                       </span>
                     </div>
 
@@ -562,7 +644,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                         Gateway Transaction ID
                       </span>
                       <span className="font-mono text-slate-800">
-                        {userOrder?.paymentId || 'Pending Authorization'}
+                        {isPaid ? 'Confirmed by verified Stripe webhook' : 'Awaiting verified Stripe webhook'}
                       </span>
                     </div>
 
@@ -571,7 +653,7 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                         Refund Status
                       </span>
                       <span className="text-slate-700">
-                        {userOrder?.refundStatus || 'Not Requested'}
+                        Payment API does not manage refund requests
                       </span>
                     </div>
                   </div>
@@ -589,21 +671,29 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                     {isPaid && (
                       <span className="text-emerald-800 font-medium flex items-center gap-1">
                         <CheckCircle className="w-4 h-4 text-emerald-700" />
-                        <span>Verified Server-Side via Webhook</span>
+                        <span>Verified Server-Side via Stripe Webhook</span>
                       </span>
                     )}
                   </div>
                 </div>
 
-                {/* Invoice Facsimile Render */}
+                {!authoritativePayment && paymentStatusError && (
+                  <p className="text-xs text-amber-800">{paymentStatusError}</p>
+                )}
+
                 {userInvoice && (
-                  <div className="space-y-3 pt-4">
-                    <div className="flex items-center justify-between">
-                      <h3 className="font-serif text-lg font-bold text-slate-900">
-                        {isPaid ? 'Payment Receipt & Enrollment Invoice' : 'Proforma Fee Invoice'}
-                      </h3>
-                    </div>
-                    <InvoiceView invoice={userInvoice} isReceipt={isPaid} />
+                  <div className="space-y-3">
+                    <p className="text-[11px] text-amber-900 bg-amber-50 border border-amber-200 rounded-lg p-3">
+                      Invoice preview from the existing local application data. It is not a Stripe receipt; payment is confirmed only by the server status above.
+                    </p>
+                    <InvoiceView
+                      invoice={userInvoice}
+                      isReceipt={false}
+                      paymentVerified={isPaid}
+                      paymentStatusLabel={
+                        isPaid ? 'Paid — confirmed by Stripe webhook' : 'Not verified by Stripe'
+                      }
+                    />
                   </div>
                 )}
               </div>

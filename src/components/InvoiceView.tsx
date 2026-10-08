@@ -6,16 +6,24 @@ import { FELLOWSHIP_DISCLAIMER_TEXT } from '../data/fellowships';
 interface InvoiceViewProps {
   invoice: Invoice;
   isReceipt?: boolean;
+  paymentVerified?: boolean;
+  paymentStatusLabel?: string;
 }
 
-export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, isReceipt = false }) => {
+export const InvoiceView: React.FC<InvoiceViewProps> = ({
+  invoice,
+  isReceipt = false,
+  paymentVerified,
+  paymentStatusLabel
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
 
   const handlePrint = () => {
     window.print();
   };
 
-  const isPaid = invoice.paymentStatus === 'Payment Successful';
+  const isPaid =
+    paymentVerified ?? invoice.paymentStatus === 'Payment Successful';
 
   return (
     <div className="space-y-4">
@@ -94,7 +102,7 @@ export const InvoiceView: React.FC<InvoiceViewProps> = ({ invoice, isReceipt = f
               }`}
             >
               {isPaid ? <CheckCircle className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
-              {invoice.paymentStatus}
+              {paymentStatusLabel || invoice.paymentStatus}
             </span>
             <p className="text-slate-600 text-[11px] pt-1">
               Method: <strong className="text-slate-800">{invoice.paymentMethod}</strong>

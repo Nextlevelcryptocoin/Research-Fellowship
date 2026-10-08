@@ -883,13 +883,14 @@ export const FellowshipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
         })
       );
 
-      // 2. Update Application Status to Paid / Enrolled
-      if (userApplication) {
+      // Submitted applications remain in the formal review queue after payment.
+      const awaitingFormalReview = userApplication?.status === 'Submitted';
+      if (userApplication && !awaitingFormalReview) {
         updateApplicationStatus(userApplication.id, 'Paid', 'Programme fee verified by payment gateway.');
       }
 
       // 3. Trigger Automatic Masteriyo LMS Enrollment
-      if (paymentConfig.autoEnrollOnPayment) {
+      if (paymentConfig.autoEnrollOnPayment && !awaitingFormalReview) {
         logAudit('ENROLLMENT_DISPATCHED', `Initiating Masteriyo LMS course enrollment for user ${targetOrder.userId}.`, targetOrder.orderId);
 
         const mapping = getMasteriyoCourseForFellowship(targetOrder.fellowshipId);
