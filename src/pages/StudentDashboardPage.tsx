@@ -40,7 +40,7 @@ interface StudentDashboardProps {
 }
 
 export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate }) => {
-  const { user, updateProfile, role } = useAuth();
+  const { user, updateProfile, saveProfile, role } = useAuth();
   const {
     userApplication,
     userInvoice,
@@ -77,6 +77,9 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
   const [authoritativePayment, setAuthoritativePayment] =
     useState<AuthoritativePaymentStatus | null>(null);
   const [paymentStatusError, setPaymentStatusError] = useState<string | null>(null);
+  const [profileSaveStatus, setProfileSaveStatus] = useState<
+    'idle' | 'saving' | 'saved' | 'error'
+  >('idle');
 
   // Status variables
   const appStatus =
@@ -1013,19 +1016,38 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                 </div>
 
                 <form
-                  onSubmit={(e) => {
+                  onSubmit={async (e) => {
                     e.preventDefault();
-                    alert('Profile updated successfully.');
+                    setProfileSaveStatus('saving');
+                    try {
+                      await saveProfile();
+                      setProfileSaveStatus('saved');
+                    } catch {
+                      setProfileSaveStatus('error');
+                    }
                   }}
                   className="space-y-4 text-xs"
                 >
+                  {profileSaveStatus === 'saved' && (
+                    <p className="text-emerald-800" role="status">
+                      Profile changes saved.
+                    </p>
+                  )}
+                  {profileSaveStatus === 'error' && (
+                    <p className="text-red-800" role="alert">
+                      Profile changes could not be saved. Please try again.
+                    </p>
+                  )}
                   <div className="grid grid-cols-2 gap-4">
                     <div className="space-y-1">
                       <label className="text-slate-600 font-medium">First Name</label>
                       <input
                         type="text"
                         value={user?.firstName}
-                        onChange={(e) => updateProfile({ firstName: e.target.value })}
+                        onChange={(e) => {
+                          setProfileSaveStatus('idle');
+                          updateProfile({ firstName: e.target.value });
+                        }}
                         className="w-full p-2.5 border border-stone-200 rounded text-slate-800"
                       />
                     </div>
@@ -1034,7 +1056,10 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       <input
                         type="text"
                         value={user?.lastName}
-                        onChange={(e) => updateProfile({ lastName: e.target.value })}
+                        onChange={(e) => {
+                          setProfileSaveStatus('idle');
+                          updateProfile({ lastName: e.target.value });
+                        }}
                         className="w-full p-2.5 border border-stone-200 rounded text-slate-800"
                       />
                     </div>
@@ -1046,7 +1071,10 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       <input
                         type="text"
                         value={user?.country}
-                        onChange={(e) => updateProfile({ country: e.target.value })}
+                        onChange={(e) => {
+                          setProfileSaveStatus('idle');
+                          updateProfile({ country: e.target.value });
+                        }}
                         className="w-full p-2.5 border border-stone-200 rounded text-slate-800"
                       />
                     </div>
@@ -1055,7 +1083,10 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                       <input
                         type="text"
                         value={user?.phone}
-                        onChange={(e) => updateProfile({ phone: e.target.value })}
+                        onChange={(e) => {
+                          setProfileSaveStatus('idle');
+                          updateProfile({ phone: e.target.value });
+                        }}
                         className="w-full p-2.5 border border-stone-200 rounded text-slate-800"
                       />
                     </div>
@@ -1066,7 +1097,10 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                     <input
                       type="text"
                       value={user?.highestQualification}
-                      onChange={(e) => updateProfile({ highestQualification: e.target.value })}
+                      onChange={(e) => {
+                        setProfileSaveStatus('idle');
+                        updateProfile({ highestQualification: e.target.value });
+                      }}
                       className="w-full p-2.5 border border-stone-200 rounded text-slate-800"
                     />
                   </div>
@@ -1076,16 +1110,20 @@ export const StudentDashboardPage: React.FC<StudentDashboardProps> = ({ navigate
                     <textarea
                       rows={3}
                       value={user?.researchInterests}
-                      onChange={(e) => updateProfile({ researchInterests: e.target.value })}
+                      onChange={(e) => {
+                        setProfileSaveStatus('idle');
+                        updateProfile({ researchInterests: e.target.value });
+                      }}
                       className="w-full p-2.5 border border-stone-200 rounded text-slate-800"
                     />
                   </div>
 
                   <button
                     type="submit"
+                    disabled={profileSaveStatus === 'saving'}
                     className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-900 rounded hover:bg-slate-800 cursor-pointer"
                   >
-                    Save Changes
+                    {profileSaveStatus === 'saving' ? 'Saving...' : 'Save Changes'}
                   </button>
                 </form>
               </div>

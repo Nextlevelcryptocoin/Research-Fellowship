@@ -10,6 +10,11 @@ export interface User {
   highestQualification: string;
   professionalBackground: string;
   researchInterests: string;
+  stateProvince?: string;
+  dateOfBirth?: string;
+  gender?: string;
+  institution?: string;
+  currentOccupation?: string;
   role: UserRole;
   createdAt: string;
 }
@@ -418,4 +423,3 @@ export interface PaymentAuditLog {
   details: string;
   status: 'SUCCESS' | 'WARNING' | 'FAILED';
 }
-

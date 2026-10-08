@@ -533,10 +533,22 @@ export const FellowshipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
     let authRequest = 0;
     const unsubscribe = subscribeApplicantAuth((firebaseUser) => {
       const requestId = ++authRequest;
+      if (!firebaseUser) {
+        if (!import.meta.env.DEV) setApplications([]);
+        else {
+          setApplications((current) =>
+            current.filter((application) => application.status === 'Draft')
+          );
+        }
+        return;
+      }
+
       setApplications((current) =>
-        current.filter((application) => application.status === 'Draft')
+        current.filter(
+          (application) =>
+            application.status === 'Draft' && application.userId === firebaseUser.uid
+        )
       );
-      if (!firebaseUser) return;
 
       void requestPaymentApi<{ applications: Application[] }>('/api/applications').then(
         ({ applications: serverApplications }) => {
@@ -545,6 +557,7 @@ export const FellowshipProvider: React.FC<{ children: React.ReactNode }> = ({ ch
             const localDrafts = current.filter(
               (application) =>
                 application.status === 'Draft' &&
+                application.userId === firebaseUser.uid &&
                 !serverApplications.some(
                   (serverApplication) =>
                     serverApplication.fellowshipId === application.fellowshipId

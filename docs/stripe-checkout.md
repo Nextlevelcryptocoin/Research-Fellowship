@@ -19,32 +19,43 @@ payment API and is never proof of payment.
    applicant/fellowship index. Check for duplicate `(applicant_uid,
    fellowship_id)` rows first; resolve any existing duplicates without deleting
    the records before creating that unique index.
-4. Configure Firebase Authentication with Google sign-in enabled and add the
-   deployed Vercel domain to its authorized domains. Set the browser-side
-   `VITE_FIREBASE_*` variables and server-side Firebase Admin credentials
-   below. `VITE_FIREBASE_PROJECT_ID` and `FIREBASE_PROJECT_ID` must refer to the
-   same Firebase project. The existing demo `AuthContext` remains for prototype
-   UI only; application submission and payment require Firebase Auth.
-5. Authenticated applicants submit through `POST /api/applications`. The API
+4. After migration `0002`, inspect the target database for pre-existing
+   `users` or `profiles` tables before applying
+   `db/migrations/0003_user_profiles.sql`. The migration is additive and
+   creates Firebase-UID-keyed user and applicant-profile records; it does not
+   alter or delete existing rows. Registration saves the submitted profile
+   through the authenticated `/api/profile` route; signed-in profile edits are
+   saved through the same route. Do not deploy the registration/profile flow
+   until this migration has been applied.
+5. Configure Firebase Authentication with Google sign-in enabled and add the
+   deployed Vercel domain to its authorized domains. Set all six browser-side
+   `VITE_FIREBASE_*` variables from the same Firebase Web App and the
+   server-side Firebase Admin credentials below. No checked-in Firebase
+   fallback is used: Vite production builds fail with the names of any missing
+   browser configuration variables rather than mixing projects.
+   `VITE_FIREBASE_PROJECT_ID` and `FIREBASE_PROJECT_ID` must refer to the same
+   Firebase project. Email/password and Google sign-in use the shared Firebase
+   Auth instance; demo personas are available only during local development.
+6. Authenticated applicants submit through `POST /api/applications`. The API
    verifies the Firebase ID token, derives the UID from its verified claims,
    validates the active fellowship, assigns an ID and `Submitted` status, and
    saves the form payload in Neon. A database unique index makes repeated
    submissions for the same applicant and fellowship idempotent: the existing
    application is returned without changing its details/status.
-6. The Apply page caches the API response for rendering, but localStorage is
+7. The Apply page caches the API response for rendering, but localStorage is
    not authoritative. `GET /api/applications` returns only records belonging
    to the verified Firebase UID. Checkout then checks that Neon record's
    application ID and UID before creating a Stripe session.
-7. Reviewers use `GET /api/admin/applications` and
+8. Reviewers use `GET /api/admin/applications` and
    `PATCH /api/admin/application-status`. Both require a Firebase ID token
    with the server-issued `admin: true` custom claim. Assign that claim only
    through a trusted Firebase Admin SDK environment, never from browser code.
    The API disallows browser/admin status changes to `Paid`; the Stripe
    webhook remains authoritative for payment. `Enrolled` is allowed only when
    Neon already contains a verified paid payment.
-8. Configure each server environment variable below in Vercel. Set
+9. Configure each server environment variable below in Vercel. Set
    `APP_BASE_URL` to the exact HTTPS origin of the deployed SPA.
-9. Configure a Stripe webhook destination at
+10. Configure a Stripe webhook destination at
    `https://<your-deployment-domain>/api/stripe/webhook` and subscribe to the
    events listed below. Copy its signing secret to Vercel; do not use the
    Stripe API secret as the webhook secret.

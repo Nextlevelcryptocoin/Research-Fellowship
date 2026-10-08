@@ -3,14 +3,17 @@ import { useAuth } from '../context/AuthContext';
 import { DisclaimerBanner } from '../components/DisclaimerBanner';
 import { ShieldCheck, UserCheck, KeyRound, ArrowRight, CheckCircle } from 'lucide-react';
 import { UserRole } from '../types';
-import { signInApplicantWithGoogle } from '../services/applicantAuth';
+import {
+  getApplicantAuthErrorMessage,
+  signInApplicantWithGoogle
+} from '../services/applicantAuth';
 
 interface LoginPageProps {
   navigate: (route: string) => void;
 }
 
 export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
-  const { login, register, switchRoleForDemo, role } = useAuth();
+  const { login, register, switchRoleForDemo, forgotPassword, authError } = useAuth();
 
   const [mode, setMode] = useState<'login' | 'register' | 'forgot'>('login');
 
@@ -25,10 +28,15 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
     email: '',
     password: '',
     country: '',
+    stateProvince: '',
+    dateOfBirth: '',
+    gender: '',
     phone: '',
     highestQualification: '',
-    professionalBackground: '',
-    researchInterests: ''
+    institution: '',
+    currentOccupation: '',
+    researchInterests: '',
+    confirmPassword: ''
   });
 
   // Forgot password
@@ -36,45 +44,38 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
   const [forgotSent, setForgotSent] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
   const [googleSignInLoading, setGoogleSignInLoading] = useState(false);
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     if (!loginEmail.trim()) {
       setError('Please provide an email address.');
       return;
     }
-    await login(loginEmail, loginPassword);
-    navigate('/student/dashboard');
+    if (!loginPassword) {
+      setError('Please enter your password.');
+      return;
+    }
+    try {
+      await login(loginEmail, loginPassword);
+      navigate('/student/dashboard');
+    } catch (loginError) {
+      setError(getApplicantAuthErrorMessage(loginError));
+    }
   };
 
   const handleGoogleSignIn = async () => {
     setError(null);
+    setNotice(null);
     setGoogleSignInLoading(true);
     try {
       await signInApplicantWithGoogle();
       navigate('/student/dashboard');
     } catch (signInError) {
-      const errorCode =
-        typeof signInError === 'object' &&
-        signInError !== null &&
-        'code' in signInError &&
-        typeof signInError.code === 'string'
-          ? signInError.code
-          : '';
-
-      if (errorCode === 'auth/popup-closed-by-user') {
-        setError('Google sign-in was cancelled before completion. Please try again.');
-      } else if (errorCode === 'auth/popup-blocked') {
-        setError('Your browser blocked the Google sign-in popup. Allow popups and try again.');
-      } else if (errorCode === 'auth/unauthorized-domain') {
-        setError('This site is not authorized for Google sign-in. Please contact support.');
-      } else if (signInError instanceof Error) {
-        setError(`Google sign-in failed: ${signInError.message}`);
-      } else {
-        setError('Google sign-in could not be completed. Please try again.');
-      }
+      setError(getApplicantAuthErrorMessage(signInError));
     } finally {
       setGoogleSignInLoading(false);
     }
@@ -83,17 +84,40 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
   const handleRegister = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
+    setNotice(null);
     if (!regForm.email || !regForm.firstName || !regForm.lastName) {
       setError('Please fill in all required fields.');
       return;
     }
-    await register(regForm);
-    navigate('/student/dashboard');
+    if (regForm.password.length < 6) {
+      setError('Choose a password with at least six characters.');
+      return;
+    }
+    if (regForm.password !== regForm.confirmPassword) {
+      setError('The passwords do not match.');
+      return;
+    }
+    try {
+      await register(regForm);
+      setMode('login');
+      setLoginEmail(regForm.email);
+      setLoginPassword('');
+      setNotice('Your account was created. Check your email and verify your address before signing in.');
+    } catch (registrationError) {
+      setError(getApplicantAuthErrorMessage(registrationError));
+    }
   };
 
-  const handleForgot = (e: React.FormEvent) => {
+  const handleForgot = async (e: React.FormEvent) => {
     e.preventDefault();
-    setForgotSent(true);
+    setError(null);
+    setNotice(null);
+    try {
+      await forgotPassword(forgotEmail);
+      setForgotSent(true);
+    } catch (resetError) {
+      setError(getApplicantAuthErrorMessage(resetError));
+    }
   };
 
   return (
@@ -143,6 +167,16 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
             {error}
           </div>
         )}
+        {notice && (
+          <div className="p-3 bg-emerald-50 border border-emerald-200 text-emerald-900 rounded-lg text-xs">
+            {notice}
+          </div>
+        )}
+        {authError && (
+          <div className="p-3 bg-amber-50 border border-amber-200 text-amber-900 rounded-lg text-xs" role="status">
+            {authError}
+          </div>
+        )}
 
         {/* LOGIN MODE */}
         {mode === 'login' && (
@@ -164,7 +198,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                 <label className="font-semibold text-slate-700">Password</label>
                 <button
                   type="button"
-                  onClick={() => setMode('forgot')}
+                  onClick={() => { setForgotSent(false); setMode('forgot'); setError(null); setNotice(null); }}
                   className="text-[11px] text-slate-500 hover:text-slate-900 underline"
                 >
                   Forgot Password?
@@ -172,6 +206,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               </div>
               <input
                 type="password"
+                required
                 placeholder="••••••••"
                 value={loginPassword}
                 onChange={(e) => setLoginPassword(e.target.value)}
@@ -206,49 +241,50 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               {googleSignInLoading ? 'Connecting to Google...' : 'Continue with Google'}
             </button>
 
-            {/* Quick Demo Login Preset Buttons */}
-            <div className="pt-4 border-t border-stone-100 space-y-2">
-              <span className="text-[10px] uppercase font-semibold text-slate-400 block tracking-wider">
-                Quick Simulation Logins (Evaluator Testing):
-              </span>
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => {
-                    switchRoleForDemo('applicant');
-                    navigate('/student/dashboard');
-                  }}
-                  className="p-2 border border-stone-200 rounded text-left hover:bg-stone-50 cursor-pointer"
-                >
-                  <span className="font-semibold block text-slate-900">Applicant Persona</span>
-                  <span className="text-[10px] text-slate-500">Wei Chen (Singapore)</span>
-                </button>
+            {import.meta.env.DEV && (
+              <div className="pt-4 border-t border-stone-100 space-y-2">
+                <span className="text-[10px] uppercase font-semibold text-slate-400 block tracking-wider">
+                  Development-only demo personas:
+                </span>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchRoleForDemo('applicant');
+                      navigate('/student/dashboard');
+                    }}
+                    className="p-2 border border-stone-200 rounded text-left hover:bg-stone-50 cursor-pointer"
+                  >
+                    <span className="font-semibold block text-slate-900">Applicant Persona</span>
+                    <span className="text-[10px] text-slate-500">Wei Chen (Demo)</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    switchRoleForDemo('fellow');
-                    navigate('/student/dashboard');
-                  }}
-                  className="p-2 border border-stone-200 rounded text-left hover:bg-stone-50 cursor-pointer"
-                >
-                  <span className="font-semibold block text-slate-900">Enrolled Fellow Persona</span>
-                  <span className="text-[10px] text-slate-500">Dr. Elena Rostova</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchRoleForDemo('fellow');
+                      navigate('/student/dashboard');
+                    }}
+                    className="p-2 border border-stone-200 rounded text-left hover:bg-stone-50 cursor-pointer"
+                  >
+                    <span className="font-semibold block text-slate-900">Enrolled Fellow Persona</span>
+                    <span className="text-[10px] text-slate-500">Dr. Elena Rostova (Demo)</span>
+                  </button>
 
-                <button
-                  type="button"
-                  onClick={() => {
-                    switchRoleForDemo('admin');
-                    navigate('/admin');
-                  }}
-                  className="p-2 border border-stone-200 rounded text-left hover:bg-stone-50 cursor-pointer sm:col-span-2"
-                >
-                  <span className="font-semibold block text-slate-900">Academic Secretariat (Administrator)</span>
-                  <span className="text-[10px] text-slate-500">Full administrative & LMS verification access</span>
-                </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      switchRoleForDemo('admin');
+                      navigate('/admin');
+                    }}
+                    className="p-2 border border-stone-200 rounded text-left hover:bg-stone-50 cursor-pointer sm:col-span-2"
+                  >
+                    <span className="font-semibold block text-slate-900">Academic Secretariat (Demo)</span>
+                    <span className="text-[10px] text-slate-500">Local UI testing only; APIs still require trusted admin claims</span>
+                  </button>
+                </div>
               </div>
-            </div>
+            )}
           </form>
         )}
 
@@ -296,8 +332,20 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                 <input
                   type="password"
                   required
+                  minLength={6}
                   value={regForm.password}
                   onChange={(e) => setRegForm({ ...regForm, password: e.target.value })}
+                  className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Confirm Password *</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  value={regForm.confirmPassword}
+                  onChange={(e) => setRegForm({ ...regForm, confirmPassword: e.target.value })}
                   className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
                 />
               </div>
@@ -327,6 +375,58 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               </div>
             </div>
 
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">State / Province *</label>
+                <input
+                  type="text"
+                  required
+                  value={regForm.stateProvince}
+                  onChange={(e) => setRegForm({ ...regForm, stateProvince: e.target.value })}
+                  className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
+                />
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Date of Birth *</label>
+                <input
+                  type="date"
+                  required
+                  max={new Date().toISOString().slice(0, 10)}
+                  value={regForm.dateOfBirth}
+                  onChange={(e) => setRegForm({ ...regForm, dateOfBirth: e.target.value })}
+                  className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Gender *</label>
+                <select
+                  required
+                  value={regForm.gender}
+                  onChange={(e) => setRegForm({ ...regForm, gender: e.target.value })}
+                  className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
+                >
+                  <option value="">Select an option</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                  <option value="Non-binary">Non-binary</option>
+                  <option value="Prefer not to say">Prefer not to say</option>
+                </select>
+              </div>
+              <div className="space-y-1">
+                <label className="font-semibold text-slate-700">Institution *</label>
+                <input
+                  type="text"
+                  required
+                  value={regForm.institution}
+                  onChange={(e) => setRegForm({ ...regForm, institution: e.target.value })}
+                  className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
+                />
+              </div>
+            </div>
+
             <div className="space-y-1">
               <label className="font-semibold text-slate-700">Highest Academic Qualification *</label>
               <input
@@ -345,8 +445,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                 type="text"
                 required
                 placeholder="Current academic or professional affiliation"
-                value={regForm.professionalBackground}
-                onChange={(e) => setRegForm({ ...regForm, professionalBackground: e.target.value })}
+                value={regForm.currentOccupation}
+                onChange={(e) => setRegForm({ ...regForm, currentOccupation: e.target.value })}
                 className="w-full p-2.5 border border-stone-200 rounded-lg text-slate-900"
               />
             </div>
@@ -367,7 +467,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               type="submit"
               className="w-full py-2.5 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer shadow-sm"
             >
-              Complete Registration & Open Dashboard →
+              Create Account & Send Verification Email →
             </button>
           </form>
         )}
@@ -379,10 +479,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
               <div className="text-center py-6 space-y-3">
                 <CheckCircle className="w-10 h-10 text-emerald-700 mx-auto" />
                 <h2 className="font-serif text-lg font-bold text-slate-900">
-                  Password Reset Instructions Dispatched
+                  Password Reset Email Sent
                 </h2>
                 <p className="text-slate-600">
-                  A verification token has been routed to <strong>{forgotEmail}</strong>. Follow the instructions to reset your password credentials.
+                  If an account exists for <strong>{forgotEmail}</strong>, Firebase has sent it a password reset link. Follow the email instructions to choose a new password.
                 </p>
                 <button
                   type="button"
@@ -418,7 +518,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ navigate }) => {
                     type="submit"
                     className="px-5 py-2 text-xs font-semibold text-white bg-slate-950 hover:bg-slate-800 rounded-lg"
                   >
-                    Send Reset Token
+                    Send Reset Email
                   </button>
                 </div>
               </>

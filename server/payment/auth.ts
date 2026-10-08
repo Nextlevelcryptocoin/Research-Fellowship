@@ -33,9 +33,25 @@ async function requireVerifiedFirebaseToken(request: ApiRequest): Promise<Decode
   }
 }
 
-export async function requireApplicantUid(request: ApiRequest): Promise<string> {
+export interface ApplicantIdentity {
+  uid: string;
+  email: string;
+  emailVerified: boolean;
+}
+
+export async function requireApplicantIdentity(
+  request: ApiRequest
+): Promise<ApplicantIdentity> {
   const decodedToken = await requireVerifiedFirebaseToken(request);
-  return decodedToken.uid;
+  return {
+    uid: decodedToken.uid,
+    email: decodedToken.email || '',
+    emailVerified: decodedToken.email_verified === true
+  };
+}
+
+export async function requireApplicantUid(request: ApiRequest): Promise<string> {
+  return (await requireApplicantIdentity(request)).uid;
 }
 
 export async function requireAdminUid(request: ApiRequest): Promise<string> {

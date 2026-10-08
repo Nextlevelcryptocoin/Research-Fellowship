@@ -184,12 +184,14 @@ export const AdminPage: React.FC<AdminPageProps> = ({ navigate, initialTab }) =>
           You are currently signed in with the role <strong className="font-mono text-slate-800 uppercase">{role}</strong>. Administrative sections are restricted to institutional administrators.
         </p>
         <div className="pt-4 flex justify-center gap-3">
-          <button
-            onClick={() => switchRoleForDemo('admin')}
-            className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-950 rounded-lg hover:bg-slate-800 cursor-pointer"
-          >
-            Switch to Administrator View (Demo Simulation)
-          </button>
+          {import.meta.env.DEV && (
+            <button
+              onClick={() => switchRoleForDemo('admin')}
+              className="px-5 py-2.5 text-xs font-semibold text-white bg-slate-950 rounded-lg hover:bg-slate-800 cursor-pointer"
+            >
+              Switch to Administrator View (Demo Simulation)
+            </button>
+          )}
           <button
             onClick={() => navigate('/student/dashboard')}
             className="px-4 py-2.5 text-xs font-semibold text-slate-800 bg-stone-100 rounded-lg hover:bg-stone-200 cursor-pointer"

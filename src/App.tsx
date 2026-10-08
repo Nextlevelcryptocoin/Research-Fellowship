@@ -34,7 +34,7 @@ import { LegalPages } from './pages/LegalPages';
 import { AlertTriangle, Home } from 'lucide-react';
 
 const AppContent: React.FC = () => {
-  const { user, role } = useAuth();
+  const { user, role, authReady, isAuthenticated } = useAuth();
   const [currentRoute, setCurrentRoute] = useState<string>(() => {
     return window.location.pathname || '/';
   });
@@ -62,6 +62,54 @@ const AppContent: React.FC = () => {
   const renderRoute = () => {
     const path = currentRoute.split('?')[0];
     const searchParams = new URLSearchParams(currentRoute.split('?')[1] || '');
+    const requiresAuthentication =
+      path === '/student/dashboard' ||
+      path === '/student/research' ||
+      path === '/checkout' ||
+      path === '/refund-request' ||
+      path.startsWith('/admin');
+
+    if (requiresAuthentication && !authReady) {
+      return (
+        <div className="min-h-[50vh] flex items-center justify-center px-4">
+          <p className="text-sm text-slate-600" role="status">Checking your secure session…</p>
+        </div>
+      );
+    }
+
+    if (requiresAuthentication && !isAuthenticated) {
+      return (
+        <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-4">
+          <h1 className="font-serif text-3xl font-bold text-slate-950">Sign in to continue</h1>
+          <p className="text-sm text-slate-600">
+            This area is available after you sign in to your Research Fellowship account.
+          </p>
+          <button
+            onClick={() => navigate('/login')}
+            className="px-5 py-2.5 text-sm font-semibold text-white bg-slate-950 rounded-lg hover:bg-slate-800"
+          >
+            Go to Sign In
+          </button>
+        </div>
+      );
+    }
+
+    if (path.startsWith('/admin') && role !== 'admin') {
+      return (
+        <div className="max-w-xl mx-auto px-4 py-20 text-center space-y-4">
+          <h1 className="font-serif text-3xl font-bold text-slate-950">Administrator access required</h1>
+          <p className="text-sm text-slate-600">
+            This account does not have an administrator role assigned by the institution.
+          </p>
+          <button
+            onClick={() => navigate('/student/dashboard')}
+            className="px-5 py-2.5 text-sm font-semibold text-slate-800 bg-stone-100 rounded-lg hover:bg-stone-200"
+          >
+            Return to Dashboard
+          </button>
+        </div>
+      );
+    }
 
     // Homepage
     if (path === '/' || path === '') {
