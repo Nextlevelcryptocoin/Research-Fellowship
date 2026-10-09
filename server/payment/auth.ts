@@ -1,7 +1,7 @@
 import { cert, getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth, type DecodedIdToken } from 'firebase-admin/auth';
 import { env } from 'node:process';
-import { ApiError, getBearerToken, type ApiRequest } from './http';
+import { ApiError, getBearerToken, type ApiRequest } from './http.js';
 
 function getFirebaseAdminApp() {
   const projectId = env.FIREBASE_PROJECT_ID;

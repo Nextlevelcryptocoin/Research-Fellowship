@@ -1,19 +1,19 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { requireApplicantUid } from '../server/payment/auth';
-import { getDatabasePool, withTransaction } from '../server/payment/db';
+import { requireApplicantUid } from '../server/payment/auth.js';
+import { getDatabasePool, withTransaction } from '../server/payment/db.js';
 import {
   ApiError,
   handleApiError,
   methodNotAllowed,
   sendJson,
   type ApiRequest
-} from '../server/payment/http';
+} from '../server/payment/http.js';
 import {
   parseApplicationSubmission,
   toApplicationRecord,
   type ApplicationRow
-} from '../server/payment/applications';
+} from '../server/payment/applications.js';
 
 export default async function handler(
   request: ApiRequest,

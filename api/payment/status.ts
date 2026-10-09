@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { requireApplicantUid } from '../../server/payment/auth';
-import { getDatabasePool } from '../../server/payment/db';
-import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http';
+import { requireApplicantUid } from '../../server/payment/auth.js';
+import { getDatabasePool } from '../../server/payment/db.js';
+import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http.js';
 
 interface PaymentStatusRow {
   application_status: string;

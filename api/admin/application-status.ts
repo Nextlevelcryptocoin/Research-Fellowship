@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { requireAdminUid } from '../../server/payment/auth';
-import { withTransaction } from '../../server/payment/db';
-import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http';
+import { requireAdminUid } from '../../server/payment/auth.js';
+import { withTransaction } from '../../server/payment/db.js';
+import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http.js';
 
 const ADMIN_REVIEW_STATUSES = new Set([
   'Submitted',

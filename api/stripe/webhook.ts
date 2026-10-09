@@ -1,14 +1,14 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type Stripe from 'stripe';
-import { getDatabasePool, withTransaction } from '../../server/payment/db';
+import { getDatabasePool, withTransaction } from '../../server/payment/db.js';
 import {
   ApiError,
   handleApiError,
   methodNotAllowed,
   readRawBody,
   sendJson
-} from '../../server/payment/http';
-import { getStripe, getWebhookSecret } from '../../server/payment/stripe';
+} from '../../server/payment/http.js';
+import { getStripe, getWebhookSecret } from '../../server/payment/stripe.js';
 
 export const config = { api: { bodyParser: false } };
 

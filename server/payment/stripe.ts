@@ -1,6 +1,6 @@
 import Stripe from 'stripe';
 import { env } from 'node:process';
-import { ApiError } from './http';
+import { ApiError } from './http.js';
 
 let stripe: Stripe | undefined;
 

@@ -1,4 +1,4 @@
-import { ApiError } from './http';
+import { ApiError } from './http.js';
 
 export interface ApplicationSubmissionData {
   firstName: string;

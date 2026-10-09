@@ -1,13 +1,13 @@
 import type { ServerResponse } from 'node:http';
-import { requireApplicantIdentity } from '../server/payment/auth';
-import { getDatabasePool, withTransaction } from '../server/payment/db';
+import { requireApplicantIdentity } from '../server/payment/auth.js';
+import { getDatabasePool, withTransaction } from '../server/payment/db.js';
 import {
   ApiError,
   handleApiError,
   methodNotAllowed,
   sendJson,
   type ApiRequest
-} from '../server/payment/http';
+} from '../server/payment/http.js';
 import {
   parseApplicantProfile,
   parseApplicantProfilePatch,
@@ -15,7 +15,7 @@ import {
   getProfileColumnName,
   type ApplicantProfileInput,
   type ApplicantProfileRow
-} from '../server/payment/profiles';
+} from '../server/payment/profiles.js';
 
 export default async function handler(
   request: ApiRequest,

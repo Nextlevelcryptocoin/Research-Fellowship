@@ -1,6 +1,6 @@
 import { Pool, type PoolClient } from '@neondatabase/serverless';
 import { env } from 'node:process';
-import { ApiError } from './http';
+import { ApiError } from './http.js';
 
 let pool: Pool | undefined;
 

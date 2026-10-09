@@ -1,9 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { requireApplicantUid } from '../../server/payment/auth';
-import { withTransaction } from '../../server/payment/db';
-import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http';
-import { getApplicationBaseUrl, getStripe } from '../../server/payment/stripe';
+import { requireApplicantUid } from '../../server/payment/auth.js';
+import { withTransaction } from '../../server/payment/db.js';
+import { ApiError, handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http.js';
+import { getApplicationBaseUrl, getStripe } from '../../server/payment/stripe.js';
 
 const PAYMENT_ELIGIBLE_STATUSES = ['Submitted', 'Approved'];
 

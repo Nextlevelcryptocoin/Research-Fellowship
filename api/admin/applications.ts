@@ -1,11 +1,11 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { requireAdminUid } from '../../server/payment/auth';
-import { getDatabasePool } from '../../server/payment/db';
-import { handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http';
+import { requireAdminUid } from '../../server/payment/auth.js';
+import { getDatabasePool } from '../../server/payment/db.js';
+import { handleApiError, methodNotAllowed, sendJson } from '../../server/payment/http.js';
 import {
   toApplicationRecord,
   type ApplicationRow
-} from '../../server/payment/applications';
+} from '../../server/payment/applications.js';
 
 export default async function handler(
   request: IncomingMessage,
